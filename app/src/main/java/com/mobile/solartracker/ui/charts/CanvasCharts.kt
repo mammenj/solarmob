@@ -1,6 +1,7 @@
 package com.mobile.solartracker.ui.charts
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -13,6 +14,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
@@ -38,11 +40,26 @@ fun GroupedBarChart(
     labels: List<String>,
     series: List<Series>,
     modifier: Modifier = Modifier,
+    selectedIndex: Int? = null,
+    onTap: (Int) -> Unit = {},
 ) {
     val measurer = rememberTextMeasurer()
     val axisStyle = MaterialTheme.typography.labelSmall.copy(color = Muted, fontSize = 9.sp)
 
-    Canvas(modifier) {
+    Canvas(
+        modifier
+            .pointerInput(labels.size) {
+                detectTapGestures { offset ->
+                    if (labels.isEmpty()) return@detectTapGestures
+                    val leftPad = 46.dp.toPx()
+                    val rightPad = 8.dp.toPx()
+                    val plotW = (size.width - leftPad - rightPad).coerceAtLeast(1f)
+                    val groupW = plotW / labels.size
+                    val idx = ((offset.x - leftPad) / groupW).toInt()
+                    if (idx in labels.indices) onTap(idx)
+                }
+            }
+    ) {
         if (labels.isEmpty() || series.isEmpty()) return@Canvas
 
         val leftPad = 46.dp.toPx()
@@ -60,6 +77,14 @@ fun GroupedBarChart(
         val groupW = plotW / labels.size
         val gap = groupW * 0.12f
         val barW = (groupW - gap * 2) / series.size
+
+        if (selectedIndex != null && selectedIndex in labels.indices) {
+            drawRect(
+                color = Color.White.copy(alpha = 0.07f),
+                topLeft = Offset(leftPad + groupW * selectedIndex, topPad),
+                size = Size(groupW, plotH),
+            )
+        }
 
         labels.indices.forEach { groupIndex ->
             val groupLeft = leftPad + groupW * groupIndex + gap
@@ -90,11 +115,27 @@ fun MultiLineChart(
     labels: List<String>,
     series: List<Series>,
     modifier: Modifier = Modifier,
+    selectedIndex: Int? = null,
+    onTap: (Int) -> Unit = {},
 ) {
     val measurer = rememberTextMeasurer()
     val axisStyle = MaterialTheme.typography.labelSmall.copy(color = Muted, fontSize = 9.sp)
 
-    Canvas(modifier) {
+    Canvas(
+        modifier
+            .pointerInput(labels.size) {
+                detectTapGestures { offset ->
+                    if (labels.isEmpty()) return@detectTapGestures
+                    val leftPad = 46.dp.toPx()
+                    val rightPad = 8.dp.toPx()
+                    val plotW = (size.width - leftPad - rightPad).coerceAtLeast(1f)
+                    val count = labels.size
+                    val step = if (count == 1) plotW else plotW / (count - 1)
+                    val idx = ((offset.x - leftPad) / step).toInt().coerceIn(0, count - 1)
+                    if (idx in labels.indices) onTap(idx)
+                }
+            }
+    ) {
         if (labels.isEmpty() || series.isEmpty()) return@Canvas
 
         val leftPad = 46.dp.toPx()
@@ -120,6 +161,16 @@ fun MultiLineChart(
         fun yFor(value: Double): Float =
             topPad + plotH - ((value - axisMin) / span * plotH).toFloat()
 
+        if (selectedIndex != null && selectedIndex in labels.indices) {
+            val x = xFor(selectedIndex)
+            drawLine(
+                color = Color.White.copy(alpha = 0.35f),
+                start = Offset(x, topPad),
+                end = Offset(x, topPad + plotH),
+                strokeWidth = 1.dp.toPx(),
+            )
+        }
+
         series.forEach { s ->
             val points = s.values.mapIndexed { index, value -> Offset(xFor(index), yFor(value)) }
             if (points.isNotEmpty()) {
@@ -136,8 +187,12 @@ fun MultiLineChart(
                         join = StrokeJoin.Round,
                     ),
                 )
-                points.forEach { point ->
-                    drawCircle(color = s.color, radius = 3.dp.toPx(), center = point)
+                points.forEachIndexed { index, point ->
+                    val r = if (index == selectedIndex) 5.dp.toPx() else 3.dp.toPx()
+                    drawCircle(color = s.color, radius = r, center = point)
+                    if (index == selectedIndex) {
+                        drawCircle(color = Color.White, radius = 2.dp.toPx(), center = point)
+                    }
                 }
             }
         }
@@ -146,7 +201,7 @@ fun MultiLineChart(
             measurer = measurer,
             style = axisStyle,
             labels = labels,
-            centers = labels.indices.map { xFor(it) },
+            centers = (0 until count).map { xFor(it) },
             baseline = topPad + plotH,
         )
     }
@@ -216,7 +271,6 @@ private fun DrawScope.drawXLabels(
             val separate = candidate.x - (previous.x + previous.width) >= gap
             when {
                 separate -> visible.add(candidate)
-                // Keep the most recent date and drop the label it would collide with.
                 index == candidates.lastIndex -> visible[visible.lastIndex] = candidate
             }
         }

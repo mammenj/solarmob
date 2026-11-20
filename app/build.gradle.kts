@@ -3,6 +3,11 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+import java.text.SimpleDateFormat
+import java.util.Date
+
+val buildDate = SimpleDateFormat("yyyy-MM-dd").format(Date())
+
 android {
     namespace = "com.mobile.solartracker"
     compileSdk = 37
@@ -11,8 +16,9 @@ android {
         applicationId = "com.mobile.solartracker"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.2"
+        buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
     }
 
     compileOptions {
@@ -22,6 +28,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

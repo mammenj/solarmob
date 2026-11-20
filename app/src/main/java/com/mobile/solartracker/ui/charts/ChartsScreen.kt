@@ -20,7 +20,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +40,8 @@ import com.mobile.solartracker.ui.theme.Export
 import com.mobile.solartracker.ui.theme.Import
 import com.mobile.solartracker.ui.theme.Muted
 import com.mobile.solartracker.ui.theme.Solar
+import com.mobile.solartracker.util.fmt1
+import com.mobile.solartracker.util.fmt2
 
 private enum class ChartView(val label: String) {
     FLOW("Energy Flow"),
@@ -78,6 +82,11 @@ fun ChartsScreen(state: AppUiState) {
         RangeChips(selected = range, onSelect = { range = it })
         ViewChips(selected = view, onSelect = { viewName = it.name })
 
+        var selectedIndex by remember { mutableStateOf<Int?>(null) }
+        LaunchedEffect(view, range) { selectedIndex = null }
+
+        val selectedPoint = selectedIndex?.let { points.getOrNull(it) }
+
         if (points.isEmpty()) {
             EmptyCard()
         } else {
@@ -91,6 +100,8 @@ fun ChartsScreen(state: AppUiState) {
                         Series("Import", Import, points.map { it.importUnits }),
                     ),
                     line = false,
+                    selectedIndex = selectedIndex,
+                    onTap = { selectedIndex = it },
                 )
 
                 ChartView.DAILY -> ChartCard(
@@ -103,6 +114,8 @@ fun ChartsScreen(state: AppUiState) {
                         Series("Use/day", Consumption, points.map { it.consumptionPerDay }),
                     ),
                     line = false,
+                    selectedIndex = selectedIndex,
+                    onTap = { selectedIndex = it },
                 )
 
                 ChartView.CUMULATIVE -> {
@@ -112,11 +125,115 @@ fun ChartsScreen(state: AppUiState) {
                         labels = points.map { it.axisLabel },
                         series = cumulative,
                         line = true,
+                        selectedIndex = selectedIndex,
+                        onTap = { selectedIndex = it },
                     )
+                }
+            }
+
+            selectedPoint?.let { point ->
+                ChartDetailCard(
+                    view = view,
+                    point = point,
+                    cumulativeValues = if (view == ChartView.CUMULATIVE) {
+                        cumulativeValuesUpTo(points, selectedIndex!!)
+                    } else null,
+                    onDismiss = { selectedIndex = null },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChartDetailCard(
+    view: ChartView,
+    point: ChartPoint,
+    cumulativeValues: List<Double>?,
+    onDismiss: () -> Unit,
+) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = point.label,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                TextButton(onClick = onDismiss) { Text("Close") }
+            }
+            when (view) {
+                ChartView.FLOW -> {
+                    DetailRow("Solar", point.solar.fmt2(), Solar, "kWh")
+                    DetailRow("Export", point.export.fmt2(), Export, "kWh")
+                    DetailRow("Import", point.importUnits.fmt2(), Import, "kWh")
+                    DetailRow("Self-sufficiency", point.selfSufficiencyPct.fmt1(), Solar, "%")
+                    DetailRow("Self-consumption", point.selfConsumptionPct.fmt1(), Export, "%")
+                    Text(
+                        text = "${point.days} days in this period",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Muted,
+                    )
+                }
+                ChartView.DAILY -> {
+                    DetailRow("Solar/day", point.solarPerDay.fmt2(), Solar, "kWh")
+                    DetailRow("Import/day", point.importPerDay.fmt2(), Import, "kWh")
+                    DetailRow("Export/day", point.exportPerDay.fmt2(), Export, "kWh")
+                    DetailRow("Use/day", point.consumptionPerDay.fmt2(), Consumption, "kWh")
+                    Text(
+                        text = "${point.days} days in this period",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Muted,
+                    )
+                }
+                ChartView.CUMULATIVE -> {
+                    val values = cumulativeValues ?: emptyList()
+                    DetailRow("Solar (cumulative)", values.getOrElse(0) { 0.0 }.fmt2(), Solar, "kWh")
+                    DetailRow("Export (cumulative)", values.getOrElse(1) { 0.0 }.fmt2(), Export, "kWh")
+                    DetailRow("Import (cumulative)", values.getOrElse(2) { 0.0 }.fmt2(), Import, "kWh")
+                    DetailRow("Consumption (cumulative)", values.getOrElse(3) { 0.0 }.fmt2(), Consumption, "kWh")
                 }
             }
         }
     }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String, color: androidx.compose.ui.graphics.Color, unit: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = Muted)
+        Text(
+            text = "$value $unit",
+            style = MaterialTheme.typography.bodySmall,
+            color = color,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+private fun cumulativeValuesUpTo(points: List<ChartPoint>, index: Int): List<Double> {
+    var solar = 0.0
+    var export = 0.0
+    var imported = 0.0
+    var consumption = 0.0
+    for (i in 0..index.coerceIn(0, points.lastIndex)) {
+        solar += points[i].solar
+        export += points[i].export
+        imported += points[i].importUnits
+        consumption += points[i].consumption
+    }
+    return listOf(solar, export, imported, consumption)
 }
 
 @Composable
@@ -157,6 +274,8 @@ private fun ChartCard(
     labels: List<String>,
     series: List<Series>,
     line: Boolean,
+    selectedIndex: Int? = null,
+    onTap: (Int) -> Unit = {},
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(
@@ -168,6 +287,11 @@ private fun ChartCard(
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
+            Text(
+                text = "Tap a point for details.",
+                style = MaterialTheme.typography.labelSmall,
+                color = Muted,
+            )
             Legend(series)
             if (line) {
                 MultiLineChart(
@@ -176,6 +300,8 @@ private fun ChartCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(250.dp),
+                    selectedIndex = selectedIndex,
+                    onTap = onTap,
                 )
             } else {
                 GroupedBarChart(
@@ -184,6 +310,8 @@ private fun ChartCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(250.dp),
+                    selectedIndex = selectedIndex,
+                    onTap = onTap,
                 )
             }
         }

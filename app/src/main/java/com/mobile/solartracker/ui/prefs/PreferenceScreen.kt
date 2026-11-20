@@ -261,9 +261,27 @@ private fun MaintenanceCard(
 
 @Composable
 private fun AboutCard() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val packageInfo = androidx.compose.runtime.remember(context) {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
+    }
+    val versionName = packageInfo?.versionName ?: "unknown"
+    val versionCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+        packageInfo?.longVersionCode ?: 0L
+    } else {
+        @Suppress("DEPRECATION")
+        (packageInfo?.versionCode ?: 0).toLong()
+    }
+    val buildDate = com.mobile.solartracker.BuildConfig.BUILD_DATE
+
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     SettingsCard(title = "ABOUT") {
-        Text("Solar Tracker 1.0", style = MaterialTheme.typography.bodyMedium)
+        Text("Solar Tracker", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(
+            text = "Version $versionName (build $versionCode) · Built $buildDate",
+            style = MaterialTheme.typography.labelSmall,
+            color = Muted,
+        )
         Text(
             text = "Offline, single-user build. Reads and writes plain SQLite files directly — " +
                 "no network access and no login.",
