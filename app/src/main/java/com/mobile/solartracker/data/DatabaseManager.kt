@@ -21,12 +21,12 @@ class DatabaseManager(private val context: Context) {
     val databasesDir: File
         get() = File(context.filesDir, "databases").also { it.mkdirs() }
 
-    /** Name of the active database, restoring the bundled seed if needed. */
+    /** Name of the active database, creating an empty one on first launch. */
     fun activeName(): String {
-        ensureSeedCopied()
+        ensureDefaultDatabase()
         val stored = prefs.getString(KEY_ACTIVE, null)
         if (stored != null && File(databasesDir, stored).isFile) return stored
-        return restoreSeed()
+        return createEmptyDatabase()
     }
 
     fun setActive(name: String) {
@@ -107,19 +107,8 @@ class DatabaseManager(private val context: Context) {
     /** Creates the meter_records table in the active file (explicit user action only). */
     fun initializeSchema() {
         SQLiteDatabase.openDatabase(activeFile().path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
-            db.execSQL(
-                """
-                CREATE TABLE IF NOT EXISTS meter_records (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date TEXT NOT NULL UNIQUE,
-                    "import" REAL NOT NULL,
-                    "export" REAL NOT NULL,
-                    solar_gen REAL NOT NULL,
-                    addedon TEXT NOT NULL
-                )
-                """.trimIndent()
-            )
-            db.execSQL("CREATE INDEX IF NOT EXISTS idx_date ON meter_records(date)")
+            db.execSQL(CREATE_TABLE_SQL)
+            db.execSQL(CREATE_INDEX_SQL)
         }
     }
 
@@ -139,15 +128,28 @@ class DatabaseManager(private val context: Context) {
         return columns.containsAll(REQUIRED_COLUMNS)
     }
 
-    private fun ensureSeedCopied() {
-        if (prefs.getBoolean(KEY_SEEDED, false)) return
-        val target = File(databasesDir, SEED_NAME)
+    /** Creates an empty meter_records database on first launch if none exists. */
+    fun createEmptyDatabase(): String {
+        val target = File(databasesDir, DEFAULT_NAME)
         if (!target.exists()) {
-            context.assets.open(SEED_NAME).use { input ->
-                target.outputStream().use { output -> input.copyTo(output) }
+            SQLiteDatabase.openOrCreateDatabase(target, null).use { db ->
+                db.execSQL(CREATE_TABLE_SQL)
+                db.execSQL(CREATE_INDEX_SQL)
             }
         }
-        prefs.edit().putBoolean(KEY_SEEDED, true).apply()
+        setActive(target.name)
+        return target.name
+    }
+
+    private fun ensureDefaultDatabase() {
+        if (prefs.getBoolean(KEY_DEFAULT_CREATED, false)) return
+        val hasDatabase = databasesDir.listFiles { file ->
+            file.isFile && file.name.endsWith(".db", true)
+        }?.isNotEmpty() == true
+        if (!hasDatabase) {
+            createEmptyDatabase()
+        }
+        prefs.edit().putBoolean(KEY_DEFAULT_CREATED, true).apply()
     }
 
     private fun displayName(uri: Uri): String? =
@@ -172,9 +174,22 @@ class DatabaseManager(private val context: Context) {
 
     companion object {
         const val SEED_NAME = "meter_logs.db"
+        const val DEFAULT_NAME = "solartracker.db"
         private const val PREFS = "solartracker"
         private const val KEY_ACTIVE = "active_db"
-        private const val KEY_SEEDED = "seed_copied"
+        private const val KEY_DEFAULT_CREATED = "default_db_created"
         private val REQUIRED_COLUMNS = setOf("id", "date", "import", "export", "solar_gen", "addedon")
+
+        private const val CREATE_TABLE_SQL = """
+            CREATE TABLE IF NOT EXISTS meter_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL UNIQUE,
+                "import" REAL NOT NULL,
+                "export" REAL NOT NULL,
+                solar_gen REAL NOT NULL,
+                addedon TEXT NOT NULL
+            )
+        """
+        private const val CREATE_INDEX_SQL = "CREATE INDEX IF NOT EXISTS idx_date ON meter_records(date)"
     }
 }

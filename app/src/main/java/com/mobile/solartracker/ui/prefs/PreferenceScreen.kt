@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -34,10 +36,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mobile.solartracker.data.DbInfo
 import com.mobile.solartracker.ui.AppUiState
+import com.mobile.solartracker.ui.theme.Export
 import com.mobile.solartracker.ui.theme.Import
 import com.mobile.solartracker.ui.theme.Muted
 import com.mobile.solartracker.ui.theme.Surface2
@@ -245,7 +250,7 @@ private fun MaintenanceCard(
         OutlinedButton(
             onClick = onRestoreSeed,
             modifier = Modifier.fillMaxWidth(),
-        ) { Text("Restore bundled meter_logs.db") }
+        ) { Text("Restore sample data (meter_logs.db)") }
         Text(
             text = "Restoring replaces the copy in app storage with the bundled 13-reading seed.",
             style = MaterialTheme.typography.labelSmall,
@@ -256,6 +261,7 @@ private fun MaintenanceCard(
 
 @Composable
 private fun AboutCard() {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     SettingsCard(title = "ABOUT") {
         Text("Solar Tracker 1.0", style = MaterialTheme.typography.bodyMedium)
         Text(
@@ -268,6 +274,17 @@ private fun AboutCard() {
             text = "Table: meter_records(id, date, import, export, solar_gen, addedon)",
             style = MaterialTheme.typography.labelSmall,
             color = Muted,
+        )
+        androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Designed and Developed by jsmammen",
+            style = MaterialTheme.typography.bodySmall.copy(
+                textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+            ),
+            color = Export,
+            modifier = Modifier.clickable {
+                runCatching { uriHandler.openUri("https://jsonresume.org/@mammenj") }
+            },
         )
     }
 }

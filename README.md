@@ -14,9 +14,10 @@ consecutive readings.
 ## Behaviour
 
 - **Single user, offline.** No login, no network permission, no server.
-- **Selectable database.** On first launch the bundled `meter_logs.db` (13 readings)
-  is copied into app-private storage. *Settings → Open database…* copies any
-  `.db` file you pick and makes it live; *Save a copy…* exports the current one.
+- **Empty by default.** On first launch an empty database (`solartracker.db`) is created
+  with the schema, so you can start logging immediately. *Settings → Open database…* copies
+  any `.db` file you pick and makes it live; *Save a copy…* exports the current one;
+  *Restore sample data* loads the bundled `meter_logs.db` (13 readings).
 - The app never rewrites an existing schema. If a chosen file has no
   `meter_records` table, it is reported and you can explicitly create it.
 - Edits apply to the private copy. Use *Save a copy…* to move them back out.
