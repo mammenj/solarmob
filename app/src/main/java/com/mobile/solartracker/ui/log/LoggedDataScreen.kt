@@ -265,6 +265,31 @@ private fun ReadingCard(
                     modifier = Modifier.weight(1f),
                 )
             }
+            period?.let {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Metric(
+                        label = "Avg/day",
+                        value = it.avgDailyConsumption.fmt2(),
+                        delta = null,
+                        color = Consumption,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Metric(
+                        label = "Net balance",
+                        value = (if (it.netBalance >= 0) "+" else "") + it.netBalance.fmt2(),
+                        delta = null,
+                        color = if (it.netBalance >= 0) Export else Import,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Metric(
+                        label = "Consumption",
+                        value = it.consumption.fmt2(),
+                        delta = null,
+                        color = Consumption,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
         }
     }
 }

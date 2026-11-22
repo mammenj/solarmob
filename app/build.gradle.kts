@@ -16,8 +16,8 @@ android {
         applicationId = "com.mobile.solartracker"
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 10
+        versionName = "1.9"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
     }
 

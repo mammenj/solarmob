@@ -3,6 +3,7 @@ package com.mobile.solartracker.data
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
+import android.os.Environment
 import android.provider.OpenableColumns
 import java.io.File
 import java.io.IOException
@@ -19,7 +20,10 @@ class DatabaseManager(private val context: Context) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     val databasesDir: File
-        get() = File(context.filesDir, "databases").also { it.mkdirs() }
+        get() {
+            val publicDocs = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+            return File(publicDocs, "solarmob").also { it.mkdirs() }
+        }
 
     /** Name of the active database, creating an empty one on first launch. */
     fun activeName(): String {
@@ -94,16 +98,6 @@ class DatabaseManager(private val context: Context) {
         } ?: throw IOException("Could not open the destination file")
     }
 
-    /** Re-copies the bundled meter_logs.db over any existing copy and activates it. */
-    fun restoreSeed(): String {
-        val target = File(databasesDir, SEED_NAME)
-        context.assets.open(SEED_NAME).use { input ->
-            target.outputStream().use { output -> input.copyTo(output) }
-        }
-        setActive(SEED_NAME)
-        return SEED_NAME
-    }
-
     /** Creates the meter_records table in the active file (explicit user action only). */
     fun initializeSchema() {
         SQLiteDatabase.openDatabase(activeFile().path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
@@ -173,7 +167,6 @@ class DatabaseManager(private val context: Context) {
     }
 
     companion object {
-        const val SEED_NAME = "meter_logs.db"
         const val DEFAULT_NAME = "solartracker.db"
         private const val PREFS = "solartracker"
         private const val KEY_ACTIVE = "active_db"

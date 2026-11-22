@@ -15,9 +15,8 @@ consecutive readings.
 
 - **Single user, offline.** No login, no network permission, no server.
 - **Empty by default.** On first launch an empty database (`solartracker.db`) is created
-  with the schema, so you can start logging immediately. *Settings → Open database…* copies
-  any `.db` file you pick and makes it live; *Save a copy…* exports the current one;
-  *Restore sample data* loads the bundled `meter_logs.db` (13 readings).
+  in `Documents/solarmob`, so you can start logging immediately. *Settings → Open database…*
+  copies any `.db` file you pick and makes it live; *Save a copy…* exports the current one.
 - The app never rewrites an existing schema. If a chosen file has no
   `meter_records` table, it is reported and you can explicitly create it.
 - Edits apply to the private copy. Use *Save a copy…* to move them back out.
@@ -29,7 +28,7 @@ consecutive readings.
 | Entry | Date picker, three cumulative values, insert-or-update |
 | Logged | Totals summary, paged reading list with per-period deltas, delete |
 | Charts | Energy Flow, Daily Rates, Cumulative — 6/12/24/all periods |
-| Settings | Active database, switch/import/export, restore seed |
+| Settings | Active database, switch/import/export, GitHub sync |
 
 ## Build
 

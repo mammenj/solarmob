@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -25,13 +27,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +46,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mobile.solartracker.data.DbInfo
 import com.mobile.solartracker.ui.AppUiState
+import com.mobile.solartracker.ui.SyncConfig
+import com.mobile.solartracker.ui.SyncState
 import com.mobile.solartracker.ui.theme.Export
 import com.mobile.solartracker.ui.theme.Import
 import com.mobile.solartracker.ui.theme.Muted
@@ -51,12 +57,19 @@ import com.mobile.solartracker.util.humanSize
 @Composable
 fun PreferenceScreen(
     state: AppUiState,
+    syncState: SyncState,
     onSwitch: (String) -> Unit,
     onImport: (Uri) -> Unit,
     onExport: (Uri) -> Unit,
-    onRestoreSeed: () -> Unit,
     onInitialize: () -> Unit,
     onDeleteDb: (String) -> Unit,
+    syncBusy: Boolean,
+    onPushDb: (String) -> Unit,
+    onPullDb: (String) -> Unit,
+    onUpdateSyncConfig: (SyncConfig) -> Unit,
+    onTestSync: () -> Unit,
+    onPushSync: () -> Unit,
+    onPullSync: () -> Unit,
 ) {
     val openLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -67,6 +80,11 @@ fun PreferenceScreen(
     ) { uri -> uri?.let(onExport) }
 
     var pendingDelete by remember { mutableStateOf<String?>(null) }
+
+    var owner by rememberSaveable { mutableStateOf(syncState.config.owner) }
+    var repo by rememberSaveable { mutableStateOf(syncState.config.repo) }
+    var branch by rememberSaveable { mutableStateOf(syncState.config.branch) }
+    var token by rememberSaveable { mutableStateOf(syncState.config.token) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -92,7 +110,10 @@ fun PreferenceScreen(
         item {
             DatabasesCard(
                 state = state,
+                syncBusy = syncState.busy,
                 onSwitch = onSwitch,
+                onPush = onPushDb,
+                onPull = onPullDb,
                 onDelete = { pendingDelete = it },
             )
         }
@@ -101,7 +122,24 @@ fun PreferenceScreen(
             MaintenanceCard(
                 activeValid = state.activeInfo?.valid != false,
                 onInitialize = onInitialize,
-                onRestoreSeed = onRestoreSeed,
+            )
+        }
+
+        item {
+            GitHubSyncCard(
+                syncState = syncState,
+                owner = owner,
+                repo = repo,
+                branch = branch,
+                token = token,
+                onOwnerChange = { owner = it },
+                onRepoChange = { repo = it },
+                onBranchChange = { branch = it },
+                onTokenChange = { token = it },
+                onSave = { onUpdateSyncConfig(SyncConfig(owner, repo, branch, token)) },
+                onTest = onTestSync,
+                onPush = onPushSync,
+                onPull = onPullSync,
             )
         }
 
@@ -176,7 +214,10 @@ private fun ActiveDatabaseCard(
 @Composable
 private fun DatabasesCard(
     state: AppUiState,
+    syncBusy: Boolean,
     onSwitch: (String) -> Unit,
+    onPush: (String) -> Unit,
+    onPull: (String) -> Unit,
     onDelete: (String) -> Unit,
 ) {
     SettingsCard(title = "DATABASES IN APP STORAGE") {
@@ -187,7 +228,10 @@ private fun DatabasesCard(
             DatabaseRow(
                 info = db,
                 active = db.name == state.activeName,
+                syncBusy = syncBusy,
                 onSwitch = { if (db.name != state.activeName) onSwitch(db.name) },
+                onPush = { onPush(db.name) },
+                onPull = { onPull(db.name) },
                 onDelete = { onDelete(db.name) },
             )
             if (index != state.databases.lastIndex) {
@@ -201,7 +245,10 @@ private fun DatabasesCard(
 private fun DatabaseRow(
     info: DbInfo,
     active: Boolean,
+    syncBusy: Boolean,
     onSwitch: () -> Unit,
+    onPush: () -> Unit,
+    onPull: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Row(
@@ -221,6 +268,12 @@ private fun DatabaseRow(
                 color = if (info.valid) Muted else Import,
             )
         }
+        IconButton(onClick = onPush, enabled = !syncBusy) {
+            Icon(Icons.Filled.CloudUpload, contentDescription = "Push to GitHub", tint = Muted)
+        }
+        IconButton(onClick = onPull, enabled = !syncBusy) {
+            Icon(Icons.Filled.CloudDownload, contentDescription = "Pull from GitHub", tint = Muted)
+        }
         if (!active) {
             IconButton(onClick = onDelete) {
                 Icon(Icons.Filled.Delete, contentDescription = "Delete database", tint = Muted)
@@ -233,7 +286,6 @@ private fun DatabaseRow(
 private fun MaintenanceCard(
     activeValid: Boolean,
     onInitialize: () -> Unit,
-    onRestoreSeed: () -> Unit,
 ) {
     SettingsCard(title = "MAINTENANCE") {
         if (!activeValid) {
@@ -247,12 +299,90 @@ private fun MaintenanceCard(
             onClick = onInitialize,
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Create schema in active file") }
-        OutlinedButton(
-            onClick = onRestoreSeed,
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("Restore sample data (meter_logs.db)") }
+    }
+}
+
+@Composable
+private fun GitHubSyncCard(
+    syncState: SyncState,
+    owner: String,
+    repo: String,
+    branch: String,
+    token: String,
+    onOwnerChange: (String) -> Unit,
+    onRepoChange: (String) -> Unit,
+    onBranchChange: (String) -> Unit,
+    onTokenChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onTest: () -> Unit,
+    onPush: () -> Unit,
+    onPull: () -> Unit,
+) {
+    SettingsCard(title = "GITHUB SYNC") {
         Text(
-            text = "Restoring replaces the copy in app storage with the bundled 13-reading seed.",
+            text = "Host all database files in a GitHub repository. " +
+                "Provide a personal access token with contents:write permission.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Muted,
+        )
+        OutlinedTextField(
+            value = owner,
+            onValueChange = onOwnerChange,
+            label = { Text("Repository owner") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = repo,
+            onValueChange = onRepoChange,
+            label = { Text("Repository name") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = branch,
+            onValueChange = onBranchChange,
+            label = { Text("Branch") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = token,
+            onValueChange = onTokenChange,
+            label = { Text("Personal access token") },
+            singleLine = true,
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
+            Text("Save settings")
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = onTest,
+                enabled = !syncState.busy,
+                modifier = Modifier.weight(1f),
+            ) { Text("Test") }
+            OutlinedButton(
+                onClick = onPush,
+                enabled = !syncState.busy,
+                modifier = Modifier.weight(1f),
+            ) { Text("Push all") }
+            OutlinedButton(
+                onClick = onPull,
+                enabled = !syncState.busy,
+                modifier = Modifier.weight(1f),
+            ) { Text("Pull all") }
+        }
+        if (syncState.busy) {
+            Text("Working…", style = MaterialTheme.typography.labelSmall, color = Muted)
+        }
+        syncState.message?.let { msg ->
+            Text(msg, style = MaterialTheme.typography.labelSmall, color = Muted)
+        }
+        Text(
+            text = "Push overwrites remote files; pull overwrites local files. " +
+                "Files are stored under databases/ in the repository.",
             style = MaterialTheme.typography.labelSmall,
             color = Muted,
         )

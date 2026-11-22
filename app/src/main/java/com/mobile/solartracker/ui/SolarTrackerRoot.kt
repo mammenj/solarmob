@@ -156,12 +156,19 @@ fun SolarTrackerRoot(viewModel: AppViewModel = viewModel()) {
                 composable("prefs") {
                     PreferenceScreen(
                         state = state,
+                        syncState = viewModel.syncState.collectAsStateWithLifecycle().value,
                         onSwitch = viewModel::switchDatabase,
                         onImport = viewModel::importDatabase,
                         onExport = viewModel::exportDatabase,
-                        onRestoreSeed = viewModel::restoreSeedDatabase,
                         onInitialize = viewModel::initializeActiveSchema,
                         onDeleteDb = viewModel::deleteDatabase,
+                        syncBusy = viewModel.syncState.collectAsStateWithLifecycle().value.busy,
+                        onPushDb = viewModel::pushDatabase,
+                        onPullDb = viewModel::pullDatabase,
+                        onUpdateSyncConfig = viewModel::updateSyncConfig,
+                        onTestSync = viewModel::testSyncConnection,
+                        onPushSync = viewModel::pushAllDatabases,
+                        onPullSync = viewModel::pullAllDatabases,
                     )
                 }
             }

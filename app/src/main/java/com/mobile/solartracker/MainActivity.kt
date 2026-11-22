@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.mobile.solartracker.ui.SolarTrackerRoot
+import com.mobile.solartracker.ui.StoragePermissionGate
 import com.mobile.solartracker.ui.theme.SolarTrackerTheme
 
 class MainActivity : ComponentActivity() {
@@ -13,7 +14,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             SolarTrackerTheme {
-                SolarTrackerRoot()
+                StoragePermissionGate {
+                    SolarTrackerRoot()
+                }
             }
         }
     }
